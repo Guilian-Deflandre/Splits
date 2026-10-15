@@ -18,7 +18,7 @@ class WorkoutStore extends ChangeNotifier {
         ..addAll(list.map((e) => Workout.fromJson(e as Map<String, dynamic>)));
     }
     if (workouts.isEmpty) {
-      // Example from the brief: 2x1 min, 3x2 min, 2x1 min.
+      // Example 2x1 min, 3x2 min, 2x1 min.
       workouts.add(Workout(
         id: const Uuid().v4(),
         name: 'Example splits',

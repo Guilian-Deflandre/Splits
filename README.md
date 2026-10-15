@@ -1,4 +1,4 @@
-# Splits — interval timer with iOS Live Activity
+# Splits - interval timer with iOS Live Activity
 
 Free splits-training app. A workout = optional warm-up, a list of blocks
 (`reps × interval`, optional rest between reps), optional cool-down.
