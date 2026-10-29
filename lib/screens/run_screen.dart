@@ -1,5 +1,6 @@
 import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import '../models/workout.dart';
 import '../services/live_activity_service.dart';
 import '../services/timer_engine.dart';
@@ -62,7 +63,7 @@ class _RunScreenState extends State<RunScreen> {
         }
         final seg = engine.current;
         final color = _color(seg.type);
-        final secs = (engine.remaining.inMilliseconds / 1000).ceil();
+        final secs = engine.remainingSeconds;
         return Scaffold(
           backgroundColor: color.withOpacity(0.18),
           appBar: AppBar(
@@ -85,8 +86,7 @@ class _RunScreenState extends State<RunScreen> {
                           fontSize: 96,
                           fontWeight: FontWeight.w200,
                           fontFeatures: [FontFeature.tabularFigures()])),
-                  LinearProgressIndicator(
-                      value: engine.segmentProgress, color: color),
+                  _SegmentProgress(engine: engine, color: color),
                   const SizedBox(height: 16),
                   Text(engine.next == null
                       ? 'Next: finish'
@@ -123,4 +123,36 @@ class _RunScreenState extends State<RunScreen> {
       },
     );
   }
+}
+
+/// Progress bar redrawn every frame so it glides, instead of stepping once
+/// per second along with the countdown text.
+class _SegmentProgress extends StatefulWidget {
+  const _SegmentProgress({required this.engine, required this.color});
+  final TimerEngine engine;
+  final Color color;
+
+  @override
+  State<_SegmentProgress> createState() => _SegmentProgressState();
+}
+
+class _SegmentProgressState extends State<_SegmentProgress>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _frames;
+
+  @override
+  void initState() {
+    super.initState();
+    _frames = createTicker((_) => setState(() {}))..start();
+  }
+
+  @override
+  void dispose() {
+    _frames.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LinearProgressIndicator(
+      value: widget.engine.segmentProgress, color: widget.color);
 }

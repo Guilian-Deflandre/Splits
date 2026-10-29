@@ -35,6 +35,11 @@ class TimerEngine extends ChangeNotifier {
     return d.isNegative ? Duration.zero : d;
   }
 
+  /// Whole seconds to display, rounded up like a countdown (1:00 at start,
+  /// 0:01 during the last second). Shared by the screen and Live Activity.
+  int get remainingSeconds =>
+      (remaining.inMicroseconds / Duration.microsecondsPerSecond).ceil();
+
   double get segmentProgress {
     final total = current.seconds * 1000;
     if (total == 0) return 1;
@@ -50,11 +55,12 @@ class TimerEngine extends ChangeNotifier {
     _endsAt = DateTime.now().add(Duration(seconds: current.seconds));
     HapticFeedback.heavyImpact();
     _syncLive();
-    _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
+    _scheduleTick();
   }
 
   void pause() {
     if (_paused || _finished) return;
+    _ticker?.cancel();
     _pausedRemaining = remaining;
     _paused = true;
     _syncLive();
@@ -66,6 +72,7 @@ class TimerEngine extends ChangeNotifier {
     _endsAt = DateTime.now().add(_pausedRemaining);
     _paused = false;
     _syncLive();
+    _scheduleTick();
     notifyListeners();
   }
 
@@ -80,6 +87,7 @@ class TimerEngine extends ChangeNotifier {
       _paused = false;
       _buzzTransition(from, current);
       _syncLive();
+      _scheduleTick();
     }
     notifyListeners();
   }
@@ -107,7 +115,19 @@ class TimerEngine extends ChangeNotifier {
       _buzzTransition(from, current);
       _syncLive();
     }
+    if (!_finished) _scheduleTick();
     notifyListeners();
+  }
+
+  /// Wakes up just after the displayed second changes (or the segment ends)
+  /// rather than polling, so the countdown never lags behind the clock.
+  void _scheduleTick() {
+    _ticker?.cancel();
+    final toNextSecond =
+        remaining.inMicroseconds % Duration.microsecondsPerSecond;
+    _ticker = Timer(
+        Duration(microseconds: toNextSecond) + const Duration(milliseconds: 5),
+        _tick);
   }
 
   /// Long vibrations on a segment change: 3 into/out of warm-up or cool-down,
@@ -146,7 +166,7 @@ class TimerEngine extends ChangeNotifier {
       'next': next == null ? 'Finish' : next!.title,
       'endsAtMs': _endsAt.millisecondsSinceEpoch,
       'paused': _paused,
-      'remainingSec': (_paused ? _pausedRemaining : remaining).inSeconds,
+      'remainingSec': remainingSeconds,
       'step': _index + 1,
       'steps': segments.length,
       // Lets the Live Activity mark itself finished even if the app is

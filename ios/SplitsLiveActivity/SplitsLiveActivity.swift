@@ -26,14 +26,18 @@ extension SplitsState {
 }
 
 /// Countdown that ticks on its own (no app updates needed) unless paused.
+/// Built only from the activity's state, never from the current time, so
+/// iOS can show it live right away on wake instead of waiting to redraw.
+/// The system timer stops at 0:00 by itself when the segment ends.
 struct CountdownText: View {
     let state: SplitsState
 
     var body: some View {
-        if state.paused || state.endsAt <= Date() {
+        if state.paused {
             Text(state.pausedText)
         } else {
-            Text(timerInterval: Date()...state.endsAt, countsDown: true)
+            let start = state.endsAt.addingTimeInterval(-Double(state.remainingSec))
+            Text(timerInterval: start...state.endsAt, countsDown: true)
         }
     }
 }
