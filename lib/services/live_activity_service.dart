@@ -1,38 +1,43 @@
 import 'dart:io';
-import 'package:live_activities/live_activities.dart';
-import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
-/// Thin wrapper over the `live_activities` plugin. No-ops off iOS or when the
-/// user has disabled Live Activities.
-///
-/// [appGroupId] must match the App Group configured in Xcode and in the Swift
-/// extension.
+/// Drives the iOS Live Activity through a small native channel (see
+/// ios/Runner/AppDelegate.swift). Local updates only, no push, so it works
+/// with a free Apple developer account. No-ops off iOS or when the user has
+/// disabled Live Activities.
 class LiveActivityService {
-  static const appGroupId = 'group.com.example.splits';
+  static const _channel = MethodChannel('splits/live_activity');
 
-  final _plugin = LiveActivities();
-  String? _activityId;
   bool _ready = false;
+  bool _active = false;
 
   Future<void> init() async {
     if (!Platform.isIOS) return;
-    await _plugin.init(appGroupId: appGroupId);
-    _ready = await _plugin.areActivitiesEnabled();
+    try {
+      _ready = await _channel.invokeMethod<bool>('isEnabled') ?? false;
+    } catch (e) {
+      debugPrint('Live Activities disabled: $e');
+    }
   }
 
   Future<void> startOrUpdate(Map<String, dynamic> data) async {
     if (!_ready) return;
-    if (_activityId == null) {
-      _activityId = await _plugin.createActivity(const Uuid().v4(), data);
-    } else {
-      await _plugin.updateActivity(_activityId!, data);
+    try {
+      await _channel.invokeMethod('startOrUpdate', data);
+      _active = true;
+    } catch (e) {
+      debugPrint('Live Activity error: $e');
     }
   }
 
   Future<void> end() async {
-    if (!_ready || _activityId == null) return;
-    final id = _activityId!;
-    _activityId = null;
-    await _plugin.endActivity(id);
+    if (!_ready || !_active) return;
+    _active = false;
+    try {
+      await _channel.invokeMethod('end');
+    } catch (e) {
+      debugPrint('Live Activity error: $e');
+    }
   }
 }

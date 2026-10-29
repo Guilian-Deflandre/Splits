@@ -5,76 +5,147 @@
 //  Created by Guilian Deflandre on 15/10/2026.
 //
 
+import ActivityKit
 import WidgetKit
 import SwiftUI
 
-struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), emoji: "😀")
-    }
+typealias SplitsState = SplitsActivityAttributes.ContentState
 
-    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = SimpleEntry(date: Date(), emoji: "😀")
-        completion(entry)
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
-        var entries: [SimpleEntry] = []
-
-        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
-        let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, emoji: "😀")
-            entries.append(entry)
+extension SplitsState {
+    var color: Color {
+        switch phase {
+        case "work": return .green
+        case "rest": return .blue
+        default: return .orange
         }
+    }
 
-        let timeline = Timeline(entries: entries, policy: .atEnd)
-        completion(timeline)
+    var pausedText: String {
+        String(format: "%d:%02d", remainingSec / 60, remainingSec % 60)
     }
 }
 
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let emoji: String
-}
-
-struct SplitsLiveActivityEntryView : View {
-    var entry: Provider.Entry
+/// Countdown that ticks on its own (no app updates needed) unless paused.
+struct CountdownText: View {
+    let state: SplitsState
 
     var body: some View {
-        VStack {
-            Text("Time:")
-            Text(entry.date, style: .time)
-
-            Text("Emoji:")
-            Text(entry.emoji)
+        if state.paused || state.endsAt <= Date() {
+            Text(state.pausedText)
+        } else {
+            Text(timerInterval: Date()...state.endsAt, countsDown: true)
         }
+    }
+}
+
+struct SplitsLockScreenView: View {
+    let state: SplitsState
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.title)
+                    .font(.headline)
+                    .foregroundStyle(state.color)
+                if !state.detail.isEmpty {
+                    Text(state.detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Text("Next: \(state.next) · \(state.step)/\(state.steps)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing) {
+                CountdownText(state: state)
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                if state.paused {
+                    Text("Paused")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+/// Shown once the workout's end time has passed but the app (suspended or
+/// killed) hasn't ended the activity yet.
+struct FinishedView: View {
+    var body: some View {
+        HStack {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("Workout finished")
+                .font(.headline)
+        }
+        .padding()
     }
 }
 
 struct SplitsLiveActivity: Widget {
-    let kind: String = "SplitsLiveActivity"
-
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            if #available(iOS 17.0, *) {
-                SplitsLiveActivityEntryView(entry: entry)
-                    .containerBackground(.fill.tertiary, for: .widget)
-            } else {
-                SplitsLiveActivityEntryView(entry: entry)
-                    .padding()
-                    .background()
+        ActivityConfiguration(for: SplitsActivityAttributes.self) { context in
+            Group {
+                if context.isStale {
+                    FinishedView()
+                } else {
+                    SplitsLockScreenView(state: context.state)
+                }
+            }
+            .activityBackgroundTint(Color.black.opacity(0.8))
+            .activitySystemActionForegroundColor(.white)
+        } dynamicIsland: { context in
+            let state = context.state
+            if context.isStale {
+                return DynamicIsland {
+                    DynamicIslandExpandedRegion(.center) {
+                        FinishedView()
+                    }
+                } compactLeading: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } compactTrailing: {
+                    Text("Done")
+                } minimal: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            return DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Text(state.title)
+                        .font(.headline)
+                        .foregroundStyle(state.color)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    CountdownText(state: state)
+                        .font(.title2.bold())
+                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    Text("Next: \(state.next) · \(state.step)/\(state.steps)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } compactLeading: {
+                Circle()
+                    .fill(state.color)
+                    .frame(width: 10, height: 10)
+            } compactTrailing: {
+                CountdownText(state: state)
+                    .monospacedDigit()
+                    .frame(maxWidth: 48)
+            } minimal: {
+                Circle()
+                    .fill(state.color)
+                    .frame(width: 10, height: 10)
             }
         }
-        .configurationDisplayName("My Widget")
-        .description("This is an example widget.")
     }
-}
-
-#Preview(as: .systemSmall) {
-    SplitsLiveActivity()
-} timeline: {
-    SimpleEntry(date: .now, emoji: "😀")
-    SimpleEntry(date: .now, emoji: "🤩")
 }

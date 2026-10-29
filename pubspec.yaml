@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  live_activities: ^2.4.2
   shared_preferences: ^2.3.0
   uuid: ^4.5.0
 

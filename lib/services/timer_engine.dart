@@ -126,8 +126,14 @@ class TimerEngine extends ChangeNotifier {
       'remainingSec': (_paused ? _pausedRemaining : remaining).inSeconds,
       'step': _index + 1,
       'steps': segments.length,
+      // Lets the Live Activity mark itself finished even if the app is
+      // suspended or killed and can't end it. Unknown while paused.
+      if (!_paused) 'workoutEndsAtMs': _workoutEndsAt.millisecondsSinceEpoch,
     });
   }
+
+  DateTime get _workoutEndsAt => _endsAt.add(Duration(
+      seconds: segments.skip(_index + 1).fold(0, (sum, s) => sum + s.seconds)));
 
   @override
   void dispose() {
