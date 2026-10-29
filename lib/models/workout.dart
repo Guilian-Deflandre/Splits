@@ -3,11 +3,12 @@ enum SegmentType { warmup, work, rest, cooldown }
 /// One step of the flattened timeline the engine actually runs.
 
 class Segment {
-  const Segment(this.type, this.title, this.detail, this.seconds);
+  const Segment(this.type, this.title, this.detail, this.seconds, {this.block});
   final SegmentType type;
   final String title; // "Interval", "Rest"...
   final String detail; // "Block 2 · 1/3"
   final int seconds;
+  final int? block; // index into Workout.blocks; null for warm-up/cool-down
 }
 
 /// "reps x work, with optional rest between reps" — e.g. 3 x 2:00 / 0:30 rest.
@@ -53,11 +54,13 @@ class Workout {
       final block = blocks[b];
       for (var r = 1; r <= block.reps; r++) {
         out.add(Segment(SegmentType.work, 'Interval',
-            'Block ${b + 1} · $r/${block.reps}', block.workSeconds));
+            'Block ${b + 1} · $r/${block.reps}', block.workSeconds,
+            block: b));
         final isLast = b == blocks.length - 1 && r == block.reps;
         if (block.restSeconds > 0 && !isLast) {
           out.add(Segment(SegmentType.rest, 'Rest',
-              'Block ${b + 1} · $r/${block.reps}', block.restSeconds));
+              'Block ${b + 1} · $r/${block.reps}', block.restSeconds,
+              block: b));
         }
       }
     }

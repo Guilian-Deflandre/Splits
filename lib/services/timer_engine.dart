@@ -74,10 +74,11 @@ class TimerEngine extends ChangeNotifier {
     if (_index + 1 >= segments.length) {
       _finish();
     } else {
+      final from = current;
       _index++;
       _endsAt = DateTime.now().add(Duration(seconds: current.seconds));
       _paused = false;
-      HapticFeedback.heavyImpact();
+      _buzzTransition(from, current);
       _syncLive();
     }
     notifyListeners();
@@ -90,6 +91,7 @@ class TimerEngine extends ChangeNotifier {
 
   void _tick() {
     if (_paused || _finished) return;
+    final from = current;
     var changed = false;
     // Loop catches up if the app was suspended across segment boundaries.
     while (!_finished && !DateTime.now().isBefore(_endsAt)) {
@@ -102,10 +104,31 @@ class TimerEngine extends ChangeNotifier {
       changed = true;
     }
     if (changed && !_finished) {
-      HapticFeedback.heavyImpact();
+      _buzzTransition(from, current);
       _syncLive();
     }
     notifyListeners();
+  }
+
+  /// Long vibrations on a segment change: 3 into/out of warm-up or cool-down,
+  /// 2 between blocks, 1 between interval and rest.
+  void _buzzTransition(Segment from, Segment to) {
+    const edges = {SegmentType.warmup, SegmentType.cooldown};
+    final times = edges.contains(from.type) || edges.contains(to.type)
+        ? 3
+        : from.block != to.block
+            ? 2
+            : 1;
+    _buzz(times);
+  }
+
+  /// iOS only offers one fixed-length (~0.4 s) system vibration, so "longer"
+  /// means using it instead of a tap, and patterns are repeats with a gap.
+  static Future<void> _buzz(int times) async {
+    for (var i = 0; i < times; i++) {
+      if (i > 0) await Future.delayed(const Duration(milliseconds: 700));
+      HapticFeedback.vibrate();
+    }
   }
 
   void _finish() {

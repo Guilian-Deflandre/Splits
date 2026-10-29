@@ -57,4 +57,76 @@ void main() {
     engine = TimerEngine(const [])..start();
     expect(engine.finished, isTrue);
   });
+
+  group('transition vibrations', () {
+    late int longVibrations;
+
+    setUp(() {
+      longVibrations = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        // Taps use the same method with a type argument; long ones have none.
+        if (call.method == 'HapticFeedback.vibrate' && call.arguments == null) {
+          longVibrations++;
+        }
+        return null;
+      });
+    });
+
+    /// Starts on the first segment, skips to the second and returns how many
+    /// long vibrations that transition produced.
+    Future<int> vibrationsOnSkip(
+        WidgetTester tester, List<Segment> segments) async {
+      engine = TimerEngine(segments)..start();
+      engine.skip();
+      await tester.pump(const Duration(seconds: 3)); // let the gaps elapse
+      await engine.stop(); // no pending timers when the test ends
+      return longVibrations;
+    }
+
+    testWidgets('interval to rest in the same block: 1', (tester) async {
+      expect(
+          await vibrationsOnSkip(tester, const [
+            Segment(SegmentType.work, 'A', '', 60, block: 0),
+            Segment(SegmentType.rest, 'B', '', 30, block: 0),
+          ]),
+          1);
+    });
+
+    testWidgets('interval to interval in the same block: 1', (tester) async {
+      expect(
+          await vibrationsOnSkip(tester, const [
+            Segment(SegmentType.work, 'A', '', 60, block: 0),
+            Segment(SegmentType.work, 'B', '', 60, block: 0),
+          ]),
+          1);
+    });
+
+    testWidgets('into the next block: 2', (tester) async {
+      expect(
+          await vibrationsOnSkip(tester, const [
+            Segment(SegmentType.rest, 'A', '', 30, block: 0),
+            Segment(SegmentType.work, 'B', '', 60, block: 1),
+          ]),
+          2);
+    });
+
+    testWidgets('warm-up to first interval: 3', (tester) async {
+      expect(
+          await vibrationsOnSkip(tester, const [
+            Segment(SegmentType.warmup, 'A', '', 300),
+            Segment(SegmentType.work, 'B', '', 60, block: 0),
+          ]),
+          3);
+    });
+
+    testWidgets('last interval to cool-down: 3', (tester) async {
+      expect(
+          await vibrationsOnSkip(tester, const [
+            Segment(SegmentType.work, 'A', '', 60, block: 0),
+            Segment(SegmentType.cooldown, 'B', '', 300),
+          ]),
+          3);
+    });
+  });
 }

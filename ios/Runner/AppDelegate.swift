@@ -36,7 +36,8 @@ import UIKit
     // running (not when already suspended), and gives it very little time.
     if #available(iOS 16.2, *) {
       let done = DispatchSemaphore(value: 0)
-      Task.detached {
+      // High priority limits the inversion of the main thread waiting on it.
+      Task.detached(priority: .high) {
         await LiveActivityController.shared.endAll()
         done.signal()
       }

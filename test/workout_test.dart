@@ -53,6 +53,17 @@ void main() {
     test('empty workout has no segments', () {
       expect(Workout(id: 'w4', name: 'Empty').toSegments(), isEmpty);
     });
+
+    test('tags intervals and rests with their block index', () {
+      final blocks = example().toSegments().map((s) => s.block).toList();
+      expect(blocks, [
+        null, // warm-up
+        0, 0, 0, 0, // 2 reps, rest after each (more blocks follow)
+        1, 1, 1, 1, 1, 1, // 3 reps, rest after each
+        2, 2, 2, // 2 reps, no rest after the very last one
+        null, // cool-down
+      ]);
+    });
   });
 
   group('JSON', () {
